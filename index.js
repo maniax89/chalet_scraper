@@ -20,8 +20,8 @@ async function scrapeSites() {
             });
             const tableRows = getTableRows(data, row);
             tableRows.each((_, element) => {
-                const text = cheerio(element).text();
-                if (text.trim()) {
+                const text = cheerio(element).text().trim();
+                if (text) {
                     chaletSites[i].data.push(parseCellText(text));
                 }
             });
@@ -39,7 +39,7 @@ function getTableRows(html, startingRow) {
 }
 
 function parseCellText(cellText) {
-    const cellTuple = cellText.trim().replace(/[\t]/g,'').split('\n');
+    const cellTuple = cellText.replace(/[\t]/g,'').split('\n');
     const value = cellTuple.slice(1).join(' ').trim();
     const isBooked = value === '' || value.includes('NO');
     return {
