@@ -1,0 +1,11 @@
+{
+  "name": "chalet_scraper",
+  "version": "1.0.0",
+  "description": "scrapes chalet sites",
+  "main": "index.js",
+  "author": "Andrew Turgeon",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.21.1"
+  }
+}
