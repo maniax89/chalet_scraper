@@ -14,7 +14,7 @@ async function main() {
     const sitesWithVacancies = scrapedSites.filter(({ hasVacancy }) => hasVacancy);
 
     if (sitesWithVacancies.length > 0) {
-        sendNotification(chaletSites);
+        sendNotification(sitesWithVacancies);
     } else {
         console.log('No sites with vacancies. Not sending notification.');
     }
