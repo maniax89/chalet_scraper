@@ -21,6 +21,17 @@ const chaletSites = [
 ];
 
 async function main() {
+  const intervalSeconds = parseIntervalSeconds();
+  if (intervalSeconds > 0) {
+    setInterval(async () => {
+      await task();
+    }, intervalSeconds * 1000);
+  } else {
+    await task();
+  }
+}
+
+async function task() {
   const scrapedSites = await scrapeSites();
   const sitesWithVacancies = scrapedSites.filter(
     ({ hasVacancy }) => hasVacancy
@@ -109,15 +120,31 @@ function validateNodemailerParameters() {
   const pass = process.env.SEND_EMAIL_PASS;
   const to = process.env.RECEIVE_EMAIL_ADDRESS;
   if (!user) {
-    throw new Error("Must set process.env.SEND_EMAIL_USER");
+    throw new Error("Must set SEND_EMAIL_USER");
   }
   if (!pass) {
-    throw new Error("Must set process.env.SEND_EMAIL_PASS");
+    throw new Error("Must set SEND_EMAIL_PASS");
   }
   if (!pass) {
-    throw new Error("Must set process.env.SEND_EMAIL_PASS");
+    throw new Error("Must set SEND_EMAIL_PASS");
   }
   return { user, pass, to };
+}
+
+function parseIntervalSeconds() {
+  let intervalSeconds = -1;
+  const intervalStr = process.env.INTERVAL_SECONDS;
+  if (intervalStr) {
+    const intervalSecondsParsed = parseInt(intervalStr, 10);
+    if (!isNaN(intervalSecondsParsed)) {
+      intervalSeconds = intervalSecondsParsed;
+    } else {
+      console.log("INTERVAL_SECONDS was not a number, not setting interval");
+    }
+  } else {
+    console.log("INTERVAL_SECONDS was not set, not setting interval");
+  }
+  return intervalSeconds;
 }
 
 if (require.main === module) {
