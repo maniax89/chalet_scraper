@@ -9,5 +9,8 @@
     "axios": "^0.21.1",
     "cheerio": "^1.0.0-rc.5",
     "nodemailer": "^6.5.0"
+  },
+  "devDependencies": {
+    "prettier": "^2.2.1"
   }
 }
