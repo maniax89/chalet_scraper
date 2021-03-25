@@ -2,6 +2,7 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const nodemailer = require("nodemailer");
 
+let notifiedSites = {};
 // to avoid cloudflare blocking, otherwise you get a 406
 const userAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36;";
@@ -32,7 +33,8 @@ async function main() {
 }
 
 async function task() {
-  const scrapedSites = await scrapeSites();
+  const unnotifiedSites = filterUnnotifiedSites(chaletSites);
+  const scrapedSites = await scrapeSites(unnotifiedSites);
   const sitesWithVacancies = scrapedSites.filter(
     ({ hasVacancy }) => hasVacancy
   );
@@ -44,9 +46,9 @@ async function task() {
   }
 }
 
-async function scrapeSites() {
-  for (let i = 0; i < chaletSites.length; i++) {
-    const { url, row } = chaletSites[i];
+async function scrapeSites(unnotifiedSites) {
+  for (let i = 0; i < unnotifiedSites.length; i++) {
+    const { url, row } = unnotifiedSites[i];
     try {
       const { data } = await axios.get(url, {
         headers: {
@@ -60,9 +62,9 @@ async function scrapeSites() {
         if (text) {
           const parsedCell = parseCellText(text);
           if (!parsedCell.isBooked) {
-            chaletSites[i].hasVacancy = true;
+            unnotifiedSites[i].hasVacancy = true;
           }
-          chaletSites[i].data.push(parsedCell);
+          unnotifiedSites[i].data.push(parsedCell);
         }
       });
     } catch (e) {
@@ -108,6 +110,7 @@ async function sendNotification(sitesWithVacancies) {
   };
   try {
     const info = await transporter.sendMail(mailOptions);
+    recordSiteNotificationsSent(sitesWithVacancies);
     console.log(`Successfully sent email to ${to}`, info);
   } catch (e) {
     console.error(`Failed to send email to ${to}`);
@@ -145,6 +148,19 @@ function parseIntervalSeconds() {
     console.log("INTERVAL_SECONDS was not set, not setting interval");
   }
   return intervalSeconds;
+}
+
+function filterUnnotifiedSites(fullSiteList) {
+  return fullSiteList.filter((site) => {
+    const notifiedSiteRecipients = notifiedSites[site.url];
+    return typeof notifiedSiteRecipients !== 'undefined';
+  });
+}
+
+function recordSiteNotificationsSent(sitesWithVacancies) {
+  sitesWithVacancies.forEach((siteWithVacancy) => {
+    notifiedSites[siteWithVacancy.url] = process.env.RECEIVE_EMAIL_ADDRESS;
+  });
 }
 
 if (require.main === module) {
