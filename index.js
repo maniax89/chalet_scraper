@@ -153,7 +153,7 @@ function parseIntervalSeconds() {
 function filterUnnotifiedSites(fullSiteList) {
   return fullSiteList.filter((site) => {
     const notifiedSiteRecipients = notifiedSites[site.url];
-    return typeof notifiedSiteRecipients !== 'undefined';
+    return typeof notifiedSiteRecipients !== "undefined";
   });
 }
 
