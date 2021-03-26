@@ -24,6 +24,9 @@ const chaletSites = [
 async function main() {
   const intervalSeconds = parseIntervalSeconds();
   if (intervalSeconds > 0) {
+    // run task once at the beginning
+    await task();
+    // then run it continuously until the process is killed
     setInterval(async () => {
       await task();
     }, intervalSeconds * 1000);
