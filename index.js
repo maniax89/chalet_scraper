@@ -42,7 +42,7 @@ async function task() {
   if (sitesWithVacancies.length > 0) {
     sendNotification(sitesWithVacancies);
   } else {
-    console.log("No sites with vacancies. Not sending notification.");
+    log("No sites with vacancies. Not sending notification.");
   }
 }
 
@@ -68,7 +68,7 @@ async function scrapeSites(unnotifiedSites) {
         }
       });
     } catch (e) {
-      console.log("Error fetching url", url);
+      error("Error fetching url", url);
       throw e;
     }
   }
@@ -111,9 +111,9 @@ async function sendNotification(sitesWithVacancies) {
   try {
     const info = await transporter.sendMail(mailOptions);
     recordSiteNotificationsSent(sitesWithVacancies);
-    console.log(`Successfully sent email to ${to}`, info);
+    log(`Successfully sent email to ${to}`, info);
   } catch (e) {
-    console.error(`Failed to send email to ${to}`);
+    error(`Failed to send email to ${to}`);
     throw e;
   }
 }
@@ -142,10 +142,10 @@ function parseIntervalSeconds() {
     if (!isNaN(intervalSecondsParsed)) {
       intervalSeconds = intervalSecondsParsed;
     } else {
-      console.log("INTERVAL_SECONDS was not a number, not setting interval");
+      log("INTERVAL_SECONDS was not a number, not setting interval");
     }
   } else {
-    console.log("INTERVAL_SECONDS was not set, not setting interval");
+    log("INTERVAL_SECONDS was not set, not setting interval");
   }
   return intervalSeconds;
 }
@@ -162,6 +162,15 @@ function recordSiteNotificationsSent(sitesWithVacancies) {
     notifiedSites[siteWithVacancy.url] = process.env.RECEIVE_EMAIL_ADDRESS;
   });
 }
+
+function log(...args) {
+  console.log(`[${new Date().toISOString()}]`, ...args);
+}
+
+function error(...args) {
+  console.error(`[${new Date().toISOString()}]`, ...args);
+}
+
 
 if (require.main === module) {
   main();
