@@ -96,6 +96,7 @@ function parseCellText(cellText) {
 
 async function sendNotification(sitesWithVacancies) {
   const { user, pass, to } = validateNodemailerParameters();
+  const urls = sitesWithVacancies.map(({ url }) => url).join("\n");
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -107,14 +108,12 @@ async function sendNotification(sitesWithVacancies) {
     from: user,
     to,
     subject: "Chalet Vacancies Available",
-    text: `Chalet Vacancies available for \n${sitesWithVacancies
-      .map(({ url }) => url)
-      .join("\n")}`,
+    text: `Chalet Vacancies available for \n${urls}`,
   };
   try {
     const info = await transporter.sendMail(mailOptions);
     recordSiteNotificationsSent(sitesWithVacancies);
-    log(`Successfully sent email to ${to}`, info);
+    log(`Successfully sent email to ${to} for url(s):\n${urls}`, info);
   } catch (e) {
     error(`Failed to send email to ${to}`);
     throw e;
@@ -156,7 +155,7 @@ function parseIntervalSeconds() {
 function filterUnnotifiedSites(fullSiteList) {
   return fullSiteList.filter((site) => {
     const notifiedSiteRecipients = notifiedSites[site.url];
-    return typeof notifiedSiteRecipients !== "undefined";
+    return typeof notifiedSiteRecipients === "undefined";
   });
 }
 
@@ -173,7 +172,6 @@ function log(...args) {
 function error(...args) {
   console.error(`[${new Date().toISOString()}]`, ...args);
 }
-
 
 if (require.main === module) {
   main();
