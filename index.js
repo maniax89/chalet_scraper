@@ -52,6 +52,9 @@ async function task() {
 async function scrapeSites(unnotifiedSites) {
   for (let i = 0; i < unnotifiedSites.length; i++) {
     const { url, row } = unnotifiedSites[i];
+    // reset defaults
+    unnotifiedSites[i].data = [];
+    unnotifiedSites[i].hasVacancy = false;
     try {
       const { data } = await axios.get(url, {
         headers: {
