@@ -78,7 +78,7 @@ async function scrapeSites(unnotifiedSites) {
       throw e;
     }
   }
-  return chaletSites;
+  return unnotifiedSites;
 }
 
 function getTableRows(html, startingRow) {
