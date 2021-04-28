@@ -98,13 +98,22 @@ function parseCellText(cellText) {
 }
 
 async function sendNotification(sitesWithVacancies) {
-  const { user, pass, to } = validateNodemailerParameters();
+  const {
+    user,
+    clientId,
+    clientSecret,
+    refreshToken,
+    to,
+  } = validateNodemailerParameters();
   const urls = sitesWithVacancies.map(({ url }) => url).join("\n");
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
+      type: "OAuth2",
       user,
-      pass,
+      clientId,
+      clientSecret,
+      refreshToken,
     },
   });
   const mailOptions = {
@@ -125,18 +134,32 @@ async function sendNotification(sitesWithVacancies) {
 
 function validateNodemailerParameters() {
   const user = process.env.SEND_EMAIL_USER;
-  const pass = process.env.SEND_EMAIL_PASS;
+  const clientId = process.env.SEND_EMAIL_CLIENT_ID;
+  const clientSecret = process.env.SEND_EMAIL_CLIENT_SECRET;
+  const refreshToken = process.env.SEND_EMAIL_REFRESH_TOKEN;
   const to = process.env.RECEIVE_EMAIL_ADDRESS;
   if (!user) {
     throw new Error("Must set SEND_EMAIL_USER");
   }
-  if (!pass) {
-    throw new Error("Must set SEND_EMAIL_PASS");
+  if (!clientId) {
+    throw new Error("Must set SEND_EMAIL_CLIENT_ID");
   }
-  if (!pass) {
-    throw new Error("Must set SEND_EMAIL_PASS");
+  if (!clientSecret) {
+    throw new Error("Must set SEND_EMAIL_CLIENT_SECRET");
   }
-  return { user, pass, to };
+  if (!refreshToken) {
+    throw new Error("Must set SEND_EMAIL_REFRESH_TOKEN");
+  }
+  if (!to) {
+    throw new Error("Must set RECEIVE_EMAIL_ADDRESS");
+  }
+  return {
+    user,
+    clientId,
+    clientSecret,
+    refreshToken,
+    to,
+  };
 }
 
 function parseIntervalSeconds() {
