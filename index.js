@@ -30,12 +30,12 @@ async function main() {
 }
 
 async function task({ parkIds, chaletSites }) {
-  const unnotifiedSites = filterUnnotifiedUrls(
-    chaletSites.map(({ url }) => url)
-  );
+  const unnotifiedSites = filterUnnotifiedUrls(chaletSites);
   const unnotifiedParkIds = filterUnnotifiedUrls(
-    parkIds.map((parkId) => `${BASE_URL}${parkId}`)
-  ).map((parkUrl) => parkUrl.replace(BASE_URL, ""));
+    parkIds.map((parkId) => {
+      return { url: `${BASE_URL}${parkId}` };
+    })
+  ).map((parkUrlObj) => parkUrlObj.url.replace(BASE_URL, ""));
   const scrapedSites = await scrapeSites(unnotifiedSites);
   const scrapedParks = await scrapeGovCampsites(unnotifiedParkIds);
   const sitesWithVacancies = scrapedSites
@@ -202,8 +202,8 @@ function parseChaletSites() {
 }
 
 function filterUnnotifiedUrls(urls) {
-  return urls.filter((url) => {
-    const notifiedSiteRecipients = notifiedSites[url];
+  return urls.filter((urlObj) => {
+    const notifiedSiteRecipients = notifiedSites[urlObj.url];
     return typeof notifiedSiteRecipients === "undefined";
   });
 }
