@@ -179,16 +179,16 @@ function parseIntervalSeconds() {
 }
 
 function parseParkIds() {
-  const parkIds = (process.env.PARK_IDS || "").split(",");
-  if (!parkIds) {
+  const parkIds = (process.env.PARK_IDS || "").split(",").filter(Boolean);
+  if (parkIds.length === 0) {
     log("PARK_IDS not provided, skipping recreation.gov scrape");
   }
   return parkIds;
 }
 
 function parseChaletSites() {
-  const chaletUrls = (process.env.CHALET_URLS || "").split(",");
-  if (!chaletUrls) {
+  const chaletUrls = (process.env.CHALET_URLS || "").split(",").filter(Boolean);
+  if (chaletUrls.length === 0) {
     log("CHALET_URLS not provided, skipping old 90s website scrape");
   }
   return chaletUrls.map((url) => {
