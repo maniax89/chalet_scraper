@@ -201,9 +201,9 @@ function parseChaletSites() {
   });
 }
 
-function filterUnnotifiedUrls(fullSiteList) {
-  return fullSiteList.filter((site) => {
-    const notifiedSiteRecipients = notifiedSites[site.url];
+function filterUnnotifiedUrls(urls) {
+  return urls.filter((url) => {
+    const notifiedSiteRecipients = notifiedSites[url];
     return typeof notifiedSiteRecipients === "undefined";
   });
 }
