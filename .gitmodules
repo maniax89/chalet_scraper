@@ -1,0 +1,3 @@
+[submodule "recreation-gov-campsite-checker"]
+	path = recreation-gov-campsite-checker
+	url = https://github.com/maniax89/recreation-gov-campsite-checker
