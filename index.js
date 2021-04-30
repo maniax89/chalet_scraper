@@ -17,19 +17,20 @@ async function main() {
   const intervalSeconds = parseIntervalSeconds();
   const parkIds = parseParkIds();
   const chaletSites = parseChaletSites();
+  const { startDate, endDate } = parseDates(parkIds);
   if (intervalSeconds > 0) {
     // run task once at the beginning
-    await task({ parkIds, chaletSites });
+    await task({ parkIds, chaletSites, startDate, endDate });
     // then run it continuously until the process is killed
     setInterval(async () => {
-      await task({ parkIds, chaletSites });
+      await task({ parkIds, chaletSites, startDate, endDate });
     }, intervalSeconds * 1000);
   } else {
-    await task({ parkIds, chaletSites });
+    await task({ parkIds, chaletSites, startDate, endDate });
   }
 }
 
-async function task({ parkIds, chaletSites }) {
+async function task({ parkIds, chaletSites, startDate, endDate }) {
   const unnotifiedSites = filterUnnotifiedUrls(chaletSites);
   const unnotifiedParkIds = filterUnnotifiedUrls(
     parkIds.map((parkId) => {
@@ -39,7 +40,11 @@ async function task({ parkIds, chaletSites }) {
   const scrapedSites = await scrapeSites(unnotifiedSites);
   let scrapedParks = [];
   try {
-    scrapedParks = await scrapeGovCampsites(unnotifiedParkIds);
+    scrapedParks = await scrapeGovCampsites({
+      parkIds: unnotifiedParkIds,
+      startDate,
+      endDate,
+    });
   } catch (e) {
     if (e.stdout === "{}\n") {
       log("No recreation.gov availabilities");
@@ -208,6 +213,25 @@ function parseChaletSites() {
       hasVacancy: false,
     };
   });
+}
+
+function parseDates(parkIds) {
+  const dateRegex = /^\d{4}\-(0[1-9]|1[012])\-(0[1-9]|[12][0-9]|3[01])$/;
+  const startDate = process.env.START_DATE;
+  const endDate = process.env.END_DATE;
+  if (parkIds.length > 0) {
+    if (!dateRegex.test(startDate)) {
+      throw new Error(
+        "Non-empty PARK_IDS requires START_DATE in YYYY-MM-DD format"
+      );
+    }
+    if (!dateRegex.test(endDate)) {
+      throw new Error(
+        "Non-empty PARK_IDS requires END_DATE in YYYY-MM-DD format"
+      );
+    }
+  }
+  return { startDate, endDate };
 }
 
 function filterUnnotifiedUrls(urls) {

@@ -1,9 +1,7 @@
 const path = require("path");
 const childProcess = require("child_process");
 
-// ENV vars
-const startDate = "2021-07-10";
-const endDate = "2021-07-17";
+// ENV vars;
 const relativePathToCampsiteScriptFile =
   "../recreation-gov-campsite-checker/camping.py";
 // end ENV vars
@@ -15,7 +13,7 @@ const campsiteScriptFile = path.resolve(
   relativePathToCampsiteScriptFile
 );
 
-async function scrapeGovCampsites(parkIds) {
+async function scrapeGovCampsites({ parkIds, startDate, endDate }) {
   if (parkIds.length === 0) {
     return [];
   }
