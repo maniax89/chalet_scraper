@@ -16,6 +16,9 @@ const campsiteScriptFile = path.resolve(
 );
 
 async function scrapeGovCampsites(parkIds) {
+  if (parkIds.length === 0) {
+    return [];
+  }
   const parkIdsWithAvailability = Object.keys(
     JSON.parse(
       childProcess.execSync(
