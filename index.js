@@ -1,46 +1,60 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const nodemailer = require("nodemailer");
+const {
+  scrapeGovCampsites,
+  BASE_URL,
+} = require("./recreationGovCampsiteChecker");
 
 let notifiedSites = {};
+// const parkIds = "251869,232493,232890,267071";
+// const chaletSites = "http://sperrychalet.com/vacancy_s.html,https://www.graniteparkchalet.com/vacancy_g.html"
 // to avoid cloudflare blocking, otherwise you get a 406
 const userAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36;";
-const chaletSites = [
-  {
-    url: "http://sperrychalet.com/vacancy_s.html",
-    row: 3,
-    data: [],
-    hasVacancy: false,
-  },
-  {
-    url: "https://www.graniteparkchalet.com/vacancy_g.html",
-    row: 3,
-    data: [],
-    hasVacancy: false,
-  },
-];
 
 async function main() {
   const intervalSeconds = parseIntervalSeconds();
+  const parkIds = parseParkIds();
+  const chaletSites = parseChaletSites();
+  const { startDate, endDate } = parseDates(parkIds);
   if (intervalSeconds > 0) {
     // run task once at the beginning
-    await task();
+    await task({ parkIds, chaletSites, startDate, endDate });
     // then run it continuously until the process is killed
     setInterval(async () => {
-      await task();
+      await task({ parkIds, chaletSites, startDate, endDate });
     }, intervalSeconds * 1000);
   } else {
-    await task();
+    await task({ parkIds, chaletSites, startDate, endDate });
   }
 }
 
-async function task() {
-  const unnotifiedSites = filterUnnotifiedSites(chaletSites);
+async function task({ parkIds, chaletSites, startDate, endDate }) {
+  const unnotifiedSites = filterUnnotifiedUrls(chaletSites);
+  const unnotifiedParkIds = filterUnnotifiedUrls(
+    parkIds.map((parkId) => {
+      return { url: `${BASE_URL}${parkId}` };
+    })
+  ).map((parkUrlObj) => parkUrlObj.url.replace(BASE_URL, ""));
   const scrapedSites = await scrapeSites(unnotifiedSites);
-  const sitesWithVacancies = scrapedSites.filter(
-    ({ hasVacancy }) => hasVacancy
-  );
+  let scrapedParks = [];
+  try {
+    scrapedParks = await scrapeGovCampsites({
+      parkIds: unnotifiedParkIds,
+      startDate,
+      endDate,
+    });
+  } catch (e) {
+    if (e.stdout === "{}\n") {
+      log("No recreation.gov availabilities");
+    } else {
+      error(e);
+    }
+  }
+  const sitesWithVacancies = scrapedSites
+    .filter(({ hasVacancy }) => hasVacancy)
+    .concat(scrapedParks);
 
   if (sitesWithVacancies.length > 0) {
     sendNotification(sitesWithVacancies);
@@ -178,9 +192,51 @@ function parseIntervalSeconds() {
   return intervalSeconds;
 }
 
-function filterUnnotifiedSites(fullSiteList) {
-  return fullSiteList.filter((site) => {
-    const notifiedSiteRecipients = notifiedSites[site.url];
+function parseParkIds() {
+  const parkIds = (process.env.PARK_IDS || "").split(",").filter(Boolean);
+  if (parkIds.length === 0) {
+    log("PARK_IDS not provided, skipping recreation.gov scrape");
+  }
+  return parkIds;
+}
+
+function parseChaletSites() {
+  const chaletUrls = (process.env.CHALET_URLS || "").split(",").filter(Boolean);
+  if (chaletUrls.length === 0) {
+    log("CHALET_URLS not provided, skipping old 90s website scrape");
+  }
+  return chaletUrls.map((url) => {
+    return {
+      url,
+      row: 3,
+      data: [],
+      hasVacancy: false,
+    };
+  });
+}
+
+function parseDates(parkIds) {
+  const dateRegex = /^\d{4}\-(0[1-9]|1[012])\-(0[1-9]|[12][0-9]|3[01])$/;
+  const startDate = process.env.START_DATE;
+  const endDate = process.env.END_DATE;
+  if (parkIds.length > 0) {
+    if (!dateRegex.test(startDate)) {
+      throw new Error(
+        "Non-empty PARK_IDS requires START_DATE in YYYY-MM-DD format"
+      );
+    }
+    if (!dateRegex.test(endDate)) {
+      throw new Error(
+        "Non-empty PARK_IDS requires END_DATE in YYYY-MM-DD format"
+      );
+    }
+  }
+  return { startDate, endDate };
+}
+
+function filterUnnotifiedUrls(urls) {
+  return urls.filter((urlObj) => {
+    const notifiedSiteRecipients = notifiedSites[urlObj.url];
     return typeof notifiedSiteRecipients === "undefined";
   });
 }
