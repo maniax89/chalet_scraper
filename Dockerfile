@@ -18,6 +18,7 @@ RUN python3 -m pip install ./recreation-gov-campsite-checker
 # prepare app
 COPY package.json .
 RUN yarn install
+COPY recreationGovCampsiteChecker.js .
 COPY index.js .
 
 CMD ["node", "index.js"]
