@@ -1,11 +1,8 @@
 const path = require("path");
 const childProcess = require("child_process");
 
-// ENV vars;
 const relativePathToCampsiteScriptFile =
   "recreation-gov-campsite-checker/camping.py";
-// end ENV vars
-
 const BASE_URL = "https://www.recreation.gov/camping/campgrounds/";
 
 const campsiteScriptFile = path.resolve(
