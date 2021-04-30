@@ -135,16 +135,16 @@ async function sendNotification(sitesWithVacancies) {
     subject: "Chalet Vacancies Available",
     text: `Chalet Vacancies available for \n${urls}`,
   };
-  try {
-    for (let i = 0; i < receivers.length; i++) {
-      const to = receivers[i];
+  for (let i = 0; i < receivers.length; i++) {
+    const to = receivers[i];
+    try {
       const info = await transporter.sendMail({ ...mailOptions, to });
       recordSiteNotificationsSent(sitesWithVacancies);
       log(`Successfully sent email to ${to} for url(s):\n${urls}`, info);
+    } catch (e) {
+      error(`Failed to send email to ${to}`);
+      throw e;
     }
-  } catch (e) {
-    error(`Failed to send email to ${to}`);
-    throw e;
   }
 }
 
