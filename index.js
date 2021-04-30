@@ -179,36 +179,26 @@ function parseIntervalSeconds() {
 }
 
 function parseParkIds() {
-  const parkIdsStr = process.env.PARK_IDS;
-  if (parkIdsStr) {
-    const parkIdsParsed = parkIdsStr.split(",");
-    if (parkIdsParsed.length === 0) {
-      log("PARK_IDS not provided, skipping recreation.gov scrape");
-      return [];
-    }
-    return parkIdsParsed;
+  const parkIds = (process.env.PARK_IDS || "").split(",");
+  if (!parkIds) {
+    log("PARK_IDS not provided, skipping recreation.gov scrape");
   }
-  return [];
+  return parkIds;
 }
 
 function parseChaletSites() {
-  const chaletUrlsStr = process.env.CHALET_URLS;
-  if (chaletUrlsStr) {
-    const chaletUrlsParsed = chaletUrlsStr.split(",");
-    if (chaletUrlsParsed.length === 0) {
-      log("CHALET_URLS not provided, skipping old 90s website scrape");
-      return [];
-    }
-    return chaletUrlsParsed.map((url) => {
-      return {
-        url,
-        row: 3,
-        data: [],
-        hasVacancy: false,
-      };
-    });
+  const chaletUrls = (process.env.CHALET_URLS || "").split(",");
+  if (!chaletUrls) {
+    log("CHALET_URLS not provided, skipping old 90s website scrape");
   }
-  return [];
+  return chaletUrls.map((url) => {
+    return {
+      url,
+      row: 3,
+      data: [],
+      hasVacancy: false,
+    };
+  });
 }
 
 function filterUnnotifiedUrls(fullSiteList) {
