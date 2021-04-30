@@ -1,46 +1,46 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const nodemailer = require("nodemailer");
+const {
+  scrapeGovCampsites,
+  BASE_URL,
+} = require("./recreationGovCampsiteChecker");
 
 let notifiedSites = {};
+// const parkIds = "251869,232493,232890,267071";
+// const chaletSites = "http://sperrychalet.com/vacancy_s.html,https://www.graniteparkchalet.com/vacancy_g.html"
 // to avoid cloudflare blocking, otherwise you get a 406
 const userAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36;";
-const chaletSites = [
-  {
-    url: "http://sperrychalet.com/vacancy_s.html",
-    row: 3,
-    data: [],
-    hasVacancy: false,
-  },
-  {
-    url: "https://www.graniteparkchalet.com/vacancy_g.html",
-    row: 3,
-    data: [],
-    hasVacancy: false,
-  },
-];
 
 async function main() {
   const intervalSeconds = parseIntervalSeconds();
+  const parkIds = parseParkIds();
+  const chaletSites = parseChaletSites();
   if (intervalSeconds > 0) {
     // run task once at the beginning
-    await task();
+    await task({ parkIds, chaletSites });
     // then run it continuously until the process is killed
     setInterval(async () => {
-      await task();
+      await task({ parkIds, chaletSites });
     }, intervalSeconds * 1000);
   } else {
-    await task();
+    await task({ parkIds, chaletSites });
   }
 }
 
-async function task() {
-  const unnotifiedSites = filterUnnotifiedSites(chaletSites);
-  const scrapedSites = await scrapeSites(unnotifiedSites);
-  const sitesWithVacancies = scrapedSites.filter(
-    ({ hasVacancy }) => hasVacancy
+async function task({ parkIds, chaletSites }) {
+  const unnotifiedSites = filterUnnotifiedUrls(
+    chaletSites.map(({ url }) => url)
   );
+  const unnotifiedParkIds = filterUnnotifiedUrls(
+    parkIds.map((parkId) => `${BASE_URL}${parkId}`)
+  ).map((parkUrl) => parkUrl.replace(BASE_URL, ""));
+  const scrapedSites = await scrapeSites(unnotifiedSites);
+  const scrapedParks = await scrapeGovCampsites(unnotifiedParkIds);
+  const sitesWithVacancies = scrapedSites
+    .filter(({ hasVacancy }) => hasVacancy)
+    .concat(scrapedParks);
 
   if (sitesWithVacancies.length > 0) {
     sendNotification(sitesWithVacancies);
@@ -178,7 +178,40 @@ function parseIntervalSeconds() {
   return intervalSeconds;
 }
 
-function filterUnnotifiedSites(fullSiteList) {
+function parseParkIds() {
+  const parkIdsStr = process.env.PARK_IDS;
+  if (parkIdsStr) {
+    const parkIdsParsed = parkIdsStr.split(",");
+    if (parkIdsParsed.length === 0) {
+      log("PARK_IDS not provided, skipping recreation.gov scrape");
+      return [];
+    }
+    return parkIdsParsed;
+  }
+  return [];
+}
+
+function parseChaletSites() {
+  const chaletUrlsStr = process.env.CHALET_URLS;
+  if (chaletUrlsStr) {
+    const chaletUrlsParsed = chaletUrlsStr.split(",");
+    if (chaletUrlsParsed.length === 0) {
+      log("CHALET_URLS not provided, skipping old 90s website scrape");
+      return [];
+    }
+    return chaletUrlsParsed.map((url) => {
+      return {
+        url,
+        row: 3,
+        data: [],
+        hasVacancy: false,
+      };
+    });
+  }
+  return [];
+}
+
+function filterUnnotifiedUrls(fullSiteList) {
   return fullSiteList.filter((site) => {
     const notifiedSiteRecipients = notifiedSites[site.url];
     return typeof notifiedSiteRecipients === "undefined";

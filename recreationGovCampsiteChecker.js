@@ -2,43 +2,41 @@ const path = require("path");
 const childProcess = require("child_process");
 
 // ENV vars
-const parkIds = "251869,232493,232890,267071".split(",").join(" ");
 const startDate = "2021-07-10";
 const endDate = "2021-07-17";
+const relativePathToCampsiteScriptFile =
+  "../recreation-gov-campsite-checker/camping.py";
+// end ENV vars
 
-const searches = [
-  {
-    parkId: "251869",
-    startDate: "2021-07-17",
-    endDate: "2021-07-24",
-  },
-];
+const BASE_URL = "https://www.recreation.gov/camping/campgrounds/";
 
 const campsiteScriptFile = path.resolve(
   __dirname,
-  "..",
-  "..",
-  "banool",
-  "recreation-gov-campsite-checker",
-  "camping.py"
+  relativePathToCampsiteScriptFile
 );
 
-async function scrapeGovCampsites() {
+async function scrapeGovCampsites(parkIds) {
   const parkIdsWithAvailability = Object.keys(
     JSON.parse(
       childProcess.execSync(
-        `python3 ${campsiteScriptFile} --start-date "${startDate}" --end-date "${endDate}" --parks ${parkIds} --nights 1 --json-output`,
+        `python3 ${campsiteScriptFile} --start-date "${startDate}" --end-date "${endDate}" --parks ${parkIds.join(
+          " "
+        )} --nights 1 --json-output`,
         { encoding: "utf-8" }
       )
     )
   );
-  const parkNames = JSON.parse(
-    childProcess.execSync(
-      `python3 ${campsiteScriptFile} --start-date "${startDate}" --end-date "${endDate}" --parks ${parkIds} --get-park-names`,
-      { encoding: "utf-8" }
-    )
-  );
-  return parkIdsWithAvailability.map((parkId) => parkNames[parkId]);
+  // const parkNames = JSON.parse(
+  //   childProcess.execSync(
+  //     `python3 ${campsiteScriptFile} --start-date "${startDate}" --end-date "${endDate}" --parks ${parkIds.join(
+  //       " "
+  //     )} --get-park-names`,
+  //     { encoding: "utf-8" }
+  //   )
+  // );
+  return parkIdsWithAvailability.map((parkId) => {
+    return { url: `${BASE_URL}${parkId}` };
+  });
 }
 
-module.exports = { scrapeGovCampsites };
+module.exports = { scrapeGovCampsites, BASE_URL };
