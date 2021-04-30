@@ -37,7 +37,16 @@ async function task({ parkIds, chaletSites }) {
     })
   ).map((parkUrlObj) => parkUrlObj.url.replace(BASE_URL, ""));
   const scrapedSites = await scrapeSites(unnotifiedSites);
-  const scrapedParks = await scrapeGovCampsites(unnotifiedParkIds);
+  let scrapedParks = [];
+  try {
+    scrapedParks = await scrapeGovCampsites(unnotifiedParkIds);
+  } catch (e) {
+    if (e.stdout === "{}\n") {
+      log("No recreation.gov availabilities");
+    } else {
+      error(e);
+    }
+  }
   const sitesWithVacancies = scrapedSites
     .filter(({ hasVacancy }) => hasVacancy)
     .concat(scrapedParks);
