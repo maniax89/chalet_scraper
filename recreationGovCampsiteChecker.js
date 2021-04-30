@@ -29,14 +29,6 @@ async function scrapeGovCampsites(parkIds) {
       )
     )
   );
-  // const parkNames = JSON.parse(
-  //   childProcess.execSync(
-  //     `python3 ${campsiteScriptFile} --start-date "${startDate}" --end-date "${endDate}" --parks ${parkIds.join(
-  //       " "
-  //     )} --get-park-names`,
-  //     { encoding: "utf-8" }
-  //   )
-  // );
   return parkIdsWithAvailability.map((parkId) => {
     return { url: `${BASE_URL}${parkId}` };
   });
