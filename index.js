@@ -117,7 +117,7 @@ async function sendNotification(sitesWithVacancies) {
     clientId,
     clientSecret,
     refreshToken,
-    to,
+    receivers,
   } = validateNodemailerParameters();
   const urls = sitesWithVacancies.map(({ url }) => url).join("\n");
   const transporter = nodemailer.createTransport({
@@ -132,17 +132,19 @@ async function sendNotification(sitesWithVacancies) {
   });
   const mailOptions = {
     from: user,
-    to,
     subject: "Chalet Vacancies Available",
     text: `Chalet Vacancies available for \n${urls}`,
   };
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    recordSiteNotificationsSent(sitesWithVacancies);
-    log(`Successfully sent email to ${to} for url(s):\n${urls}`, info);
-  } catch (e) {
-    error(`Failed to send email to ${to}`);
-    throw e;
+  for (let i = 0; i < receivers.length; i++) {
+    const to = receivers[i];
+    try {
+      const info = await transporter.sendMail({ ...mailOptions, to });
+      recordSiteNotificationsSent(sitesWithVacancies);
+      log(`Successfully sent email to ${to} for url(s):\n${urls}`, info);
+    } catch (e) {
+      error(`Failed to send email to ${to}`);
+      throw e;
+    }
   }
 }
 
@@ -151,7 +153,9 @@ function validateNodemailerParameters() {
   const clientId = process.env.SEND_EMAIL_CLIENT_ID;
   const clientSecret = process.env.SEND_EMAIL_CLIENT_SECRET;
   const refreshToken = process.env.SEND_EMAIL_REFRESH_TOKEN;
-  const to = process.env.RECEIVE_EMAIL_ADDRESS;
+  const receivers = (process.env.RECEIVE_EMAIL_ADDRESS || "")
+    .split(",")
+    .filter(Boolean);
   if (!user) {
     throw new Error("Must set SEND_EMAIL_USER");
   }
@@ -164,7 +168,7 @@ function validateNodemailerParameters() {
   if (!refreshToken) {
     throw new Error("Must set SEND_EMAIL_REFRESH_TOKEN");
   }
-  if (!to) {
+  if (receivers.length === 0) {
     throw new Error("Must set RECEIVE_EMAIL_ADDRESS");
   }
   return {
@@ -172,7 +176,7 @@ function validateNodemailerParameters() {
     clientId,
     clientSecret,
     refreshToken,
-    to,
+    receivers,
   };
 }
 
@@ -241,9 +245,11 @@ function filterUnnotifiedUrls(urls) {
   });
 }
 
-function recordSiteNotificationsSent(sitesWithVacancies) {
+function recordSiteNotificationsSent(sitesWithVacancies, to) {
   sitesWithVacancies.forEach((siteWithVacancy) => {
-    notifiedSites[siteWithVacancy.url] = process.env.RECEIVE_EMAIL_ADDRESS;
+    notifiedSites[siteWithVacancy.url] = (
+      notifiedSites[siteWithVacancy.url] || []
+    ).concat(to);
   });
 }
 
