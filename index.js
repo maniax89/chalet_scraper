@@ -1,39 +1,54 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const nodemailer = require("nodemailer");
+const { google } = require("googleapis");
 const {
   scrapeGovCampsites,
   BASE_URL,
 } = require("./recreationGovCampsiteChecker");
 
-let notifiedSites = {};
 // const parkIds = "251869,232493,232890,267071";
 // const chaletSites = "http://sperrychalet.com/vacancy_s.html,https://www.graniteparkchalet.com/vacancy_g.html"
 // to avoid cloudflare blocking, otherwise you get a 406
 const userAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36;";
+const SPREADSHEET_NOTIFICATION_RANGE = "'Output: Notification'!A:D";
 
 async function main() {
+  const { sheets, spreadsheetId } = loadGoogleSheetsClient();
   const intervalSeconds = parseIntervalSeconds();
   if (intervalSeconds > 0) {
     // run task once at the beginning
-    await task();
+    await task({ sheets, spreadsheetId });
     // then run it continuously until the process is killed
     setInterval(async () => {
-      await task();
+      await task({ sheets, spreadsheetId });
     }, intervalSeconds * 1000);
   } else {
-    await task();
+    await task({ sheets, spreadsheetId });
   }
 }
 
-async function task() {
+function loadGoogleSheetsClient() {
   const {
-    recGovEntries,
-    chaletSites,
-    emails,
-    pastNotifications,
-  } = loadInputs();
+    clientId,
+    clientSecret,
+    refreshToken,
+    spreadsheetId,
+  } = validateGoogleSheetsParameters();
+  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret);
+  oAuth2Client.setCredentials({
+    refresh_token: refreshToken,
+  });
+  const sheets = google.sheets({ version: "v4", auth: oAuth2Client });
+  return { sheets, spreadsheetId };
+}
+
+async function task({ sheets, spreadsheetId }) {
+  const { recGovEntries, chaletSites, emails, pastNotifications } = loadInputs(
+    sheets,
+    spreadsheetId
+  );
   if (emails.length === 0) {
     log("No emails configured. Not running scraper(s).");
     return;
@@ -54,7 +69,7 @@ async function task() {
     .concat(scrapedParks);
 
   if (sitesWithVacancies.length > 0) {
-    sendNotification(sitesWithVacancies, emails);
+    sendNotification({ sitesWithVacancies, emails, sheets, spreadsheetId });
   } else {
     log("No sites with vacancies. Not sending notification.");
   }
@@ -144,7 +159,12 @@ async function scrapeParks(recGovEntries, emails, pastNotifications) {
   return scrapedParks;
 }
 
-async function sendNotification(sitesWithVacancies, emails) {
+async function sendNotification({
+  sitesWithVacancies,
+  emails,
+  sheets,
+  spreadsheetId,
+}) {
   const {
     user,
     clientId,
@@ -170,7 +190,12 @@ async function sendNotification(sitesWithVacancies, emails) {
   };
   try {
     const info = await transporter.sendMail(mailOptions);
-    recordSiteNotificationsSent(sitesWithVacancies);
+    await recordSiteNotificationsSent({
+      sitesWithVacancies,
+      emails,
+      sheets,
+      spreadsheetId,
+    });
     log(`Successfully sent email to ${to} for url(s):\n${urls}`, info);
   } catch (e) {
     error(`Failed to send email to ${to}`);
@@ -203,29 +228,123 @@ function validateNodemailerParameters() {
   };
 }
 
-function loadInputs() {
-  // TODO returns inputs object
-  // { recGovEntries, chaletSites, emails, pastNotifications }
+function validateGoogleSheetsParameters() {
+  const clientId = process.env.GOOGLE_SHEETS_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_SHEETS_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_SHEETS_REFRESH_TOKEN;
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  if (!clientId) {
+    throw new Error("Must set GOOGLE_SHEETS_CLIENT_ID");
+  }
+  if (!clientSecret) {
+    throw new Error("Must set GOOGLE_SHEETS_CLIENT_SECRET");
+  }
+  if (!refreshToken) {
+    throw new Error("Must set GOOGLE_SHEETS_REFRESH_TOKEN");
+  }
+  if (!spreadsheetId) {
+    throw new Error("Must set GOOGLE_SHEETS_SPREADSHEET_ID");
+  }
+  return {
+    clientId,
+    clientSecret,
+    refreshToken,
+    spreadsheetId,
+  };
 }
 
-function loadEmails() {
-  // TODO returns array of strings
-  // [ 'email@foo.com' ]
+async function loadInputs(sheetsClient, spreadsheetId) {
+  const recGovEntries = await loadRecGovEntries(sheetsClient, spreadsheetId);
+  const chaletSites = await loadChaletSites(sheetsClient, spreadsheetId);
+  const emails = await loadEmails(sheetsClient, spreadsheetId);
+  const pastNotifications = await loadPastNotifications(
+    sheetsClient,
+    spreadsheetId
+  );
+  return { recGovEntries, chaletSites, emails, pastNotifications };
 }
 
-function loadPastNotifications() {
-  //TODO return array of objects
-  // [ { email, url, startDate, endDate }]
+async function loadEmails(sheetsClient, spreadsheetId) {
+  try {
+    const {
+      data: { values = [] },
+    } = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId,
+      range: "'Input: Email'!A:A",
+    });
+
+    return values.slice(1);
+  } catch (e) {
+    error("Unable to load emails", e);
+    return [];
+  }
 }
 
-function loadRecGovEntries() {
-  //TODO return array of objects
-  // [ { parkIds: [], startDate, endDate }]
+async function loadPastNotifications(sheetsClient, spreadsheetId) {
+  try {
+    const {
+      data: { values = [] },
+    } = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId,
+      range: SPREADSHEET_NOTIFICATION_RANGE,
+    });
+
+    return values.slice(1).map((row) => {
+      return { email: row[0], url: row[1], startDate: row[2], endDate: row[3] };
+    });
+  } catch (e) {
+    error("Unable to load past notifications", e);
+    return [];
+  }
 }
 
-function loadChaletSites() {
-  //TODO return array of objects
-  // [ { url, row } ]
+async function loadRecGovEntries(sheetsClient, spreadsheetId) {
+  try {
+    const {
+      data: { values = [] },
+    } = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId,
+      range: "'Input: Rec.gov'!A:C",
+    });
+
+    if (values.length === 0) {
+      log("No Rec.Gov sites provided, skipping recreation.gov scrape");
+    }
+    return values.slice(1).map((row) => {
+      return {
+        parkIds: (row[0] || "").split(",").filter(Boolean),
+        startDate: validateDate(row[1]),
+        endDate: validateDate(row[2]),
+      };
+    });
+  } catch (e) {
+    error("Unable to load rec.gov entries", e);
+    return [];
+  }
+}
+
+async function loadChaletSites(sheetsClient, spreadsheetId) {
+  try {
+    const {
+      data: { values = [] },
+    } = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId,
+      range: "'Input: Chalet'!A:B",
+    });
+
+    if (values.length === 0) {
+      log("No Chalet sites provided, skipping old 90s website scrape");
+    }
+    return values.slice(1).map((row) => {
+      return {
+        url: row[0],
+        row: row[1],
+      };
+    });
+  } catch (e) {
+    error("Unable to load chalet urls", e);
+    return [];
+  }
 }
 
 function parseIntervalSeconds() {
@@ -244,46 +363,11 @@ function parseIntervalSeconds() {
   return intervalSeconds;
 }
 
-function parseParkIds() {
-  const parkIds = (process.env.PARK_IDS || "").split(",").filter(Boolean);
-  if (parkIds.length === 0) {
-    log("PARK_IDS not provided, skipping recreation.gov scrape");
-  }
-  return parkIds;
-}
-
-function parseChaletSites() {
-  const chaletUrls = (process.env.CHALET_URLS || "").split(",").filter(Boolean);
-  if (chaletUrls.length === 0) {
-    log("CHALET_URLS not provided, skipping old 90s website scrape");
-  }
-  return chaletUrls.map((url) => {
-    return {
-      url,
-      row: 3,
-      data: [],
-      hasVacancy: false,
-    };
-  });
-}
-
-function parseDates(parkIds) {
+function validateDate(maybeDate) {
   const dateRegex = /^\d{4}\-(0[1-9]|1[012])\-(0[1-9]|[12][0-9]|3[01])$/;
-  const startDate = process.env.START_DATE;
-  const endDate = process.env.END_DATE;
-  if (parkIds.length > 0) {
-    if (!dateRegex.test(startDate)) {
-      throw new Error(
-        "Non-empty PARK_IDS requires START_DATE in YYYY-MM-DD format"
-      );
-    }
-    if (!dateRegex.test(endDate)) {
-      throw new Error(
-        "Non-empty PARK_IDS requires END_DATE in YYYY-MM-DD format"
-      );
-    }
+  if (!dateRegex.test(maybeDate)) {
+    throw new Error(`Date ${maybeDate} must be in YYYY-MM-DD format`);
   }
-  return { startDate, endDate };
 }
 
 function filterUnnotifiedUrls(urls, emails, pastNotifications) {
@@ -308,14 +392,27 @@ function filterUnnotifiedUrls(urls, emails, pastNotifications) {
   });
 }
 
-function recordSiteNotificationsSent(sitesWithVacancies, emails) {
+async function recordSiteNotificationsSent({
+  sitesWithVacancies,
+  emails,
+  sheets,
+  spreadsheetId,
+}) {
+  const values = [];
   sitesWithVacancies.forEach(({ url, startDate, endDate }) => {
     emails.forEach((email) => {
-      //TODO add row to output: notifications
-      // convert undefined to empty string
-      console.log({ email, url, startDate, endDate });
+      values.push([email, url, startDate, endDate].filter(Boolean));
     });
   });
+  try {
+    sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: SPREADSHEET_NOTIFICATION_RANGE,
+      requestBody: { values },
+    });
+  } catch (e) {
+    error(`Unable to record site notification sent for values: ${values}`, e);
+  }
 }
 
 function log(...args) {
