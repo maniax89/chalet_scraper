@@ -17,7 +17,8 @@ RUN python3 -m pip install ./recreation-gov-campsite-checker
 
 # prepare app
 COPY package.json .
-RUN yarn install
+COPY yarn.lock .
+RUN yarn install --frozen-lockfile
 COPY recreationGovCampsiteChecker.js .
 COPY index.js .
 

@@ -25,7 +25,7 @@ async function scrapeGovCampsites({ parkIds, startDate, endDate }) {
     )
   );
   return parkIdsWithAvailability.map((parkId) => {
-    return { url: `${BASE_URL}${parkId}` };
+    return { url: `${BASE_URL}${parkId}`, startDate, endDate };
   });
 }
 
