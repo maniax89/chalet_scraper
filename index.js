@@ -7,12 +7,10 @@ const {
   BASE_URL,
 } = require("./recreationGovCampsiteChecker");
 
-// const parkIds = "251869,232493,232890,267071";
-// const chaletSites = "http://sperrychalet.com/vacancy_s.html,https://www.graniteparkchalet.com/vacancy_g.html"
 // to avoid cloudflare blocking, otherwise you get a 406
 const userAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36;";
-const SPREADSHEET_NOTIFICATION_RANGE = "'Output: Notification'!A:D";
+const SPREADSHEET_NOTIFICATION_RANGE = "Notifications!A:D";
 
 async function main() {
   const { sheets, spreadsheetId } = loadGoogleSheetsClient();
@@ -45,10 +43,12 @@ function loadGoogleSheetsClient() {
 }
 
 async function task({ sheets, spreadsheetId }) {
-  const { recGovEntries, chaletSites, emails, pastNotifications } = loadInputs(
-    sheets,
-    spreadsheetId
-  );
+  const {
+    recGovEntries,
+    chaletSites,
+    emails,
+    pastNotifications,
+  } = await loadInputs(sheets, spreadsheetId);
   if (emails.length === 0) {
     log("No emails configured. Not running scraper(s).");
     return;
@@ -145,11 +145,11 @@ async function scrapeParks(recGovEntries, emails, pastNotifications) {
         startDate,
         endDate,
       });
-      scrapedParks.push(parks);
+      scrapedParks.push(...parks);
     } catch (e) {
       if (e.stdout === "{}\n") {
         log(
-          `No recreation.gov availabilities for parks: ${parkIds} between ${startDate} and ${endDate}`
+          `No recreation.gov availabilities for parks: ${unnotifiedParkIds} between ${startDate} and ${endDate}`
         );
       } else {
         error(e);
@@ -196,9 +196,12 @@ async function sendNotification({
       sheets,
       spreadsheetId,
     });
-    log(`Successfully sent email to ${to} for url(s):\n${urls}`, info);
+    log(
+      `Successfully sent email to ${mailOptions.to} for url(s):\n${urls}`,
+      info
+    );
   } catch (e) {
-    error(`Failed to send email to ${to}`);
+    error(`Failed to send email to ${mailOptions.to}`);
     throw e;
   }
 }
@@ -273,7 +276,7 @@ async function loadEmails(sheetsClient, spreadsheetId) {
       range: "'Input: Email'!A:A",
     });
 
-    return values.slice(1);
+    return values.slice(1).flat();
   } catch (e) {
     error("Unable to load emails", e);
     return [];
@@ -368,6 +371,7 @@ function validateDate(maybeDate) {
   if (!dateRegex.test(maybeDate)) {
     throw new Error(`Date ${maybeDate} must be in YYYY-MM-DD format`);
   }
+  return maybeDate;
 }
 
 function filterUnnotifiedUrls(urls, emails, pastNotifications) {
@@ -405,9 +409,10 @@ async function recordSiteNotificationsSent({
     });
   });
   try {
-    sheets.spreadsheets.values.append({
+    await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: SPREADSHEET_NOTIFICATION_RANGE,
+      valueInputOption: "USER_ENTERED",
       requestBody: { values },
     });
   } catch (e) {
