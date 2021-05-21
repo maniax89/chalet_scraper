@@ -82,7 +82,7 @@ async function scrapeSites(chaletSites, emails, pastNotifications) {
     pastNotifications
   );
   for (let i = 0; i < unnotifiedChaletSites.length; i++) {
-    const { url, row } = unnotifiedChaletSites[i];
+    const { url, row, startDate, endDate } = unnotifiedChaletSites[i];
     // reset defaults
     unnotifiedChaletSites[i].data = [];
     unnotifiedChaletSites[i].hasVacancy = false;
@@ -98,7 +98,14 @@ async function scrapeSites(chaletSites, emails, pastNotifications) {
         const text = cheerio(element).text().trim();
         if (text) {
           const parsedCell = parseCellText(text);
-          if (!parsedCell.isBooked) {
+          if (
+            !parsedCell.isBooked &&
+            isDateBetween(
+              new Date(parsedCell.date),
+              new Date(startDate),
+              new Date(endDate)
+            )
+          ) {
             unnotifiedChaletSites[i].hasVacancy = true;
           }
           unnotifiedChaletSites[i].data.push(parsedCell);
@@ -119,10 +126,11 @@ function getTableRows(html, startingRow) {
 
 function parseCellText(cellText) {
   const cellTuple = cellText.replace(/[\t]/g, "").split("\n");
+  const date = cellTuple[0];
   const value = cellTuple.slice(1).join(" ").trim();
   const isBooked = value === "" || value.includes("NO");
   return {
-    date: cellTuple[0],
+    date,
     value,
     isBooked,
   };
@@ -313,13 +321,21 @@ async function loadRecGovEntries(sheetsClient, spreadsheetId) {
     if (values.length === 0) {
       log("No Rec.Gov sites provided, skipping recreation.gov scrape");
     }
-    return values.slice(1).map((row) => {
-      return {
-        parkIds: (row[0] || "").split(",").filter(Boolean),
-        startDate: validateDate(row[1]),
-        endDate: validateDate(row[2]),
-      };
-    });
+    return values
+      .slice(1)
+      .map((row) => {
+        try {
+          return {
+            parkIds: (row[0] || "").split(",").filter(Boolean),
+            startDate: validateDate(row[1]),
+            endDate: validateDate(row[2]),
+          };
+        } catch (e) {
+          error("Invalid rec gov row", row);
+          return undefined;
+        }
+      })
+      .filter(Boolean);
   } catch (e) {
     error("Unable to load rec.gov entries", e);
     return [];
@@ -332,18 +348,28 @@ async function loadChaletSites(sheetsClient, spreadsheetId) {
       data: { values = [] },
     } = await sheetsClient.spreadsheets.values.get({
       spreadsheetId,
-      range: "'Input: Chalet'!A:B",
+      range: "'Input: Chalet'!A:D",
     });
 
     if (values.length === 0) {
       log("No Chalet sites provided, skipping old 90s website scrape");
     }
-    return values.slice(1).map((row) => {
-      return {
-        url: row[0],
-        row: row[1],
-      };
-    });
+    return values
+      .slice(1)
+      .map((row) => {
+        try {
+          return {
+            url: row[0],
+            row: row[1],
+            startDate: validateDate(row[2]),
+            endDate: validateDate(row[3]),
+          };
+        } catch (e) {
+          error("Invalid chalet row input", row);
+          return undefined;
+        }
+      })
+      .filter(Boolean);
   } catch (e) {
     error("Unable to load chalet urls", e);
     return [];
@@ -418,6 +444,10 @@ async function recordSiteNotificationsSent({
   } catch (e) {
     error(`Unable to record site notification sent for values: ${values}`, e);
   }
+}
+
+function isDateBetween(checkDate, startDate, endDate) {
+  return checkDate >= startDate && checkDate <= endDate;
 }
 
 function log(...args) {
