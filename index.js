@@ -179,7 +179,9 @@ async function sendNotification({
     clientSecret,
     refreshToken,
   } = validateNodemailerParameters();
-  const urls = sitesWithVacancies.map(({ url }) => url).join("\n");
+  const urls = sitesWithVacancies
+    .map(({ url, startDate, endDate }) => `${url} ${startDate}-${endDate}`)
+    .join("\n");
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
